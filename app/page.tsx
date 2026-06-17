@@ -90,7 +90,7 @@ export default function ComptairSearchPage() {
       return;
     }
 
-    setLoading(true);
+    loading && setLoading(true);
     setError("");
     setShowSuggestions(false);
 
@@ -143,6 +143,28 @@ export default function ComptairSearchPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleRangeClick = (match: SearchMatch) => {
+    const nextQuery =
+      match.from !== null ? `${match.from} ${match.nom}` : match.nom;
+
+    setQuery(nextQuery);
+    setError("");
+    setShowSuggestions(false);
+    setResult({
+      found: true,
+      comptoir: match.comptoir,
+      matches: [match],
+    });
+  };
+
+  // FIXED: Implemented formatRange to cleanly display address splits
+  const formatRange = (m: SearchMatch) => {
+    if (m.from !== null && m.to !== null) {
+      return `No. ${m.from} à ${m.to} ${m.nom}`;
+    }
+    return m.nom;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
@@ -250,7 +272,7 @@ export default function ComptairSearchPage() {
                           <button
                             onClick={() => {
                               const query = `${match.adress} ${match.ville}`;
-                              const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+                              const url = `https://maps.google.com/?q=${encodeURIComponent(query)}`;
                               window.open(url, "_blank");
                             }}
                             className="flex items-center gap-1 text-blue-600 hover:underline cursor-pointer"
@@ -265,9 +287,9 @@ export default function ComptairSearchPage() {
                           </button>
                         </div>
 
-                        {/* 🗺️ OpenStreetMap static preview (FIXED) */}
+                        {/* Maps preview integration */}
                         <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          href={`https://maps.google.com/?q=${encodeURIComponent(
                             `${match.adress} ${match.ville}`,
                           )}`}
                           target="_blank"
@@ -279,7 +301,7 @@ export default function ComptairSearchPage() {
                             height="160"
                             loading="lazy"
                             className="rounded-lg"
-                            src={`https://www.google.com/maps?q=${encodeURIComponent(
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(
                               `${match.adress} ${match.ville}`,
                             )}&output=embed`}
                           />
@@ -307,14 +329,19 @@ export default function ComptairSearchPage() {
                     </p>
                     <ul className="space-y-2">
                       {result.matches.map((m, i) => (
-                        <li
-                          key={i}
-                          className="text-sm text-blue-800 flex justify-between"
-                        >
-                          <span>
-                            Portes {m.from} à {m.to}
-                          </span>
-                          <span className="font-bold">{m.comptoir}</span>
+                        <li key={i} className="text-sm text-blue-800">
+                          <button
+                            type="button"
+                            onClick={() => handleRangeClick(m)}
+                            className="w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <span className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                              <span className="font-semibold">
+                                {formatRange(m)}
+                              </span>
+                              <span className="font-bold">{m.comptoir}</span>
+                            </span>
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -334,17 +361,6 @@ export default function ComptairSearchPage() {
                 </div>
               </div>
             )}
-
-            {/* <button
-              onClick={() => {
-                setQuery("");
-                setResult(null);
-                inputRef.current?.focus();
-              }}
-              className="w-full py-3 border-2 border-slate-300 rounded-lg hover:border-slate-400 hover:bg-slate-50 transition-all font-medium text-slate-700"
-            >
-              Nouvelle recherche
-            </button> */}
           </div>
         )}
 

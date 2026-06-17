@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-import { buildStreetMap, resolveComptoir, getAllStreets } from "@/lib/resolve";
+import {
+  buildStreetMap,
+  resolveComptoir,
+  getAllStreets,
+  type StreetEntry,
+} from "@/lib/resolve";
 
 // Initialize auth - same as your POST endpoint
 const serviceAccountAuth = new JWT({
@@ -15,8 +20,8 @@ const doc = new GoogleSpreadsheet(
   serviceAccountAuth,
 );
 
-let streetMap: Map<string, any[]> | null = null;
-let rawData: any[] = []; // Store raw data for debugging
+let streetMap: Map<string, StreetEntry[]> | null = null;
+let rawData: StreetEntry[] = []; // Store raw data for debugging
 let lastFetchTime = 0;
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour in milliseconds
 
@@ -62,13 +67,13 @@ async function loadData() {
 
     // Convert rows to our expected data format with whitespace trimming
     const data = rows
-      .map((row, index) => {
+      .map((row) => {
         const nom = (row.get("nom") || "").trim();
         const ville = (row.get("ville") || "").trim();
         const comptoir = (row.get("comptoir") || "").trim();
         const from = row.get("from") ? Number(row.get("from")) : null;
         const to = row.get("to") ? Number(row.get("to")) : null;
-        const adress = (row.get("adress") || "").trim();
+        const adress = (row.get("adress") || row.get("address") || "").trim();
 
         // Validate
         if (!nom) {
@@ -167,7 +172,26 @@ export async function GET(req: Request) {
     if (action === "list") {
       // Return all available streets for autocomplete
       const streets = getAllStreets(map);
-      return NextResponse.json({ streets, count: streets.length });
+      const suggestions = rawData
+        .map((entry) => ({
+          from: entry.from,
+          to: entry.to,
+          nom: entry.nom,
+          ville: entry.ville,
+          comptoir: entry.comptoir,
+          adress: entry.adress,
+        }))
+        .sort((a, b) => {
+          const streetCompare = a.nom.localeCompare(b.nom, "fr");
+          if (streetCompare !== 0) return streetCompare;
+          return (a.from ?? 0) - (b.from ?? 0);
+        });
+
+      return NextResponse.json({
+        streets,
+        suggestions,
+        count: suggestions.length,
+      });
     }
 
     // SEARCH ACTION
@@ -180,6 +204,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       comptoir: result.comptoir,
+      reason: result.reason,
       matches: result.matches.map((m) => ({
         from: m.from,
         to: m.to,

@@ -1,13 +1,42 @@
 /**
  * Street data interface based on your Google Sheets structure
  */
-interface StreetEntry {
+export interface StreetEntry {
   from: number | null;
   to: number | null;
   nom: string;
   ville: string;
   comptoir: string;
   adress: string;
+}
+
+interface StreetRow {
+  from?: number | string | null;
+  to?: number | string | null;
+  nom?: string | null;
+  ville?: string | null;
+  comptoir?: string | null;
+  adress?: string | null;
+  address?: string | null;
+}
+
+const STREET_TYPE_WORDS = new Set([
+  "avenue",
+  "av",
+  "ave",
+  "rue",
+  "r",
+  "boulevard",
+  "boul",
+  "blvd",
+  "chemin",
+  "ch",
+]);
+
+function hasRange(
+  entry: StreetEntry,
+): entry is StreetEntry & { from: number; to: number } {
+  return entry.from !== null && entry.to !== null;
 }
 
 /**
@@ -50,7 +79,7 @@ function normalizeStreetName(name: string): string {
  * Extracts house number and street name from a search string
  */
 function extractQuery(input: string) {
-  let cleaned = input
+  const cleaned = input
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -60,10 +89,23 @@ function extractQuery(input: string) {
   const parts = cleaned.split(" ");
   let number: number | null = null;
 
-  // If the first word is a number, extract it
-  if (/^\d+$/.test(parts[0])) {
+  if (parts.length === 0) {
+    return { number, street: "" };
+  }
+
+  // Extract a civic number at the beginning, but keep numeric street names
+  // such as "100 Avenue" or "100e Avenue" as the street when no civic number
+  // was typed.
+  if (/^\d+$/.test(parts[0]) && !STREET_TYPE_WORDS.has(parts[1])) {
     number = parseInt(parts[0], 10);
     parts.shift();
+  }
+
+  // Also support "100e Avenue 305" for people who type the civic number last.
+  const lastPart = parts[parts.length - 1];
+  if (number === null && /^\d+$/.test(lastPart)) {
+    number = parseInt(lastPart, 10);
+    parts.pop();
   }
 
   const street = normalizeStreetName(parts.join(" "));
@@ -73,7 +115,7 @@ function extractQuery(input: string) {
 /**
  * Builds a searchable map from raw Google Sheets data
  */
-export function buildStreetMap(data: any[]): Map<string, StreetEntry[]> {
+export function buildStreetMap(data: StreetRow[]): Map<string, StreetEntry[]> {
   const map = new Map<string, StreetEntry[]>();
 
   const addToMap = (key: string, entry: StreetEntry) => {
@@ -89,7 +131,7 @@ export function buildStreetMap(data: any[]): Map<string, StreetEntry[]> {
       nom: row.nom?.toString() || "",
       ville: row.ville?.toString() || "",
       comptoir: row.comptoir?.toString() || "",
-      adress: row.adress?.toString() || "",
+      adress: (row.adress ?? row.address)?.toString() || "",
     };
 
     if (!entry.nom) continue;
@@ -128,7 +170,7 @@ function findEntriesByStreet(
       const directMatch = street.includes(key) || key.includes(street);
       if (directMatch) {
         value.forEach((entry) => {
-          const id = `${entry.nom}|${entry.from}|${entry.to}`;
+          const id = `${entry.nom}|${entry.from}|${entry.to}|${entry.comptoir}|${entry.adress}`;
           if (!seen.has(id)) {
             matches.push(entry);
             seen.add(id);
@@ -160,9 +202,8 @@ export function resolveComptoir(
   // CASE 1: House number is provided
   if (number !== null) {
     // Try to find an entry where the number is within range
-    // If an entry has no range (null), we treat it as a match-all
     const match = entries.find((e) => {
-      if (e.from === null || e.to === null) return true;
+      if (!hasRange(e)) return false;
       return number >= e.from && number <= e.to;
     });
 
@@ -171,6 +212,15 @@ export function resolveComptoir(
         comptoir: match.comptoir,
         matches: [match],
         reason: `Succès : Le numéro ${number} correspond à ce comptoir.`,
+      };
+    }
+
+    const fallbackMatch = entries.find((e) => !hasRange(e));
+    if (fallbackMatch) {
+      return {
+        comptoir: fallbackMatch.comptoir,
+        matches: [fallbackMatch],
+        reason: `Succès : cette rue correspond à ce comptoir.`,
       };
     }
 
