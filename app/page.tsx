@@ -127,6 +127,11 @@ export default function ComptairSearchPage() {
       return;
     }
 
+    // DISMISS KEYBOARD ON MOBILE: Force the input field to lose focus
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+
     setLoading(true);
     setError("");
     setShowSuggestions(false);
@@ -152,31 +157,32 @@ export default function ComptairSearchPage() {
   };
 
   const handleSuggestionClick = (suggestion: StreetSuggestion) => {
+    // Retain the civic number if the user typed one before picking the suggestion
     const currentParts = query.trim().split(/\s+/);
     let prefix = "";
-
-    // 1. Check if the first word typed is a valid civic number
     if (
       /^\d+$/.test(currentParts[0]) &&
       !STREET_TYPE_WORDS.has(currentParts[1])
     ) {
       const typedNumber = currentParts[0];
-
-      // 2. Look at the suggestion name (e.g., "100e Avenue" or "103e Avenue")
       const suggestionNorm = suggestion.nom.toLowerCase().trim();
 
-      // 3. CRITICAL FIX: If the suggestion naturally starts with this number sequence
-      // (e.g., "100e" starts with "10"), DO NOT duplicate it as a civic number!
       if (suggestionNorm.startsWith(typedNumber.toLowerCase())) {
-        prefix = ""; // Reset prefix to empty so it doesn't duplicate
+        prefix = "";
       } else {
-        prefix = `${typedNumber} `; // Keep it as a real civic number (e.g., "10 rue des Alouettes")
+        prefix = `${typedNumber} `;
       }
     }
 
     const nextQuery = `${prefix}${suggestion.nom}${suggestion.ville ? ` ${suggestion.ville}` : ""}`;
     setQuery(nextQuery);
     setShowSuggestions(false);
+
+    // Force keyboard down here as well when clicking an item
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+
     handleSearch(nextQuery);
   };
 
