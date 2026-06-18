@@ -363,7 +363,6 @@ export default function ComptairSearchPage() {
                             href={`tel:${match.telephone.replace(/\s+/g, "")}`}
                             className="text-blue-600 font-medium hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            <Phone size={14} className="text-slate-400" />
                             {match.telephone}
                           </a>
                         ) : (
@@ -388,10 +387,6 @@ export default function ComptairSearchPage() {
                             }}
                             className="flex items-start gap-1 text-blue-600 hover:underline cursor-pointer text-right font-medium"
                           >
-                            <MapPin
-                              size={14}
-                              className="text-slate-400 mt-0.5 inline shrink-0"
-                            />
                             <span>
                               {match.adress}, {match.ville}
                             </span>
