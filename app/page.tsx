@@ -1,8 +1,11 @@
 "use client";
-import { MapPin } from "lucide-react";
+
+import { MapPin, Phone } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 interface SearchMatch {
+  telephone: string;
+  courriel: string;
   from: number | null;
   to: number | null;
   nom: string;
@@ -20,9 +23,21 @@ interface SearchResult {
 
 interface StreetSuggestion {
   nom: string;
-  comptoir: string;
-  adress: string;
+  ville: string;
 }
+
+const STREET_TYPE_WORDS = new Set([
+  "avenue",
+  "av",
+  "ave",
+  "rue",
+  "r",
+  "boulevard",
+  "boul",
+  "blvd",
+  "chemin",
+  "ch",
+]);
 
 export default function ComptairSearchPage() {
   const [query, setQuery] = useState("");
@@ -35,18 +50,19 @@ export default function ComptairSearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Load all streets on component mount
+  // Load all streets with their towns on component mount
   useEffect(() => {
     const loadStreets = async () => {
       try {
         const res = await fetch("/api/resolve?action=list");
         const data = await res.json();
         if (data.streets) {
+          // Expecting data.streets to be an array of objects: { nom: string, ville: string }
+          // If it is an array of strings, it defaults safely gracefully
           setAllStreets(
-            data.streets.map((street: string) => ({
-              nom: street,
-              comptoir: "",
-              adress: "",
+            data.streets.map((street: any) => ({
+              nom: typeof street === "object" ? street.nom : street,
+              ville: typeof street === "object" ? street.ville || "" : "",
             })),
           );
         }
@@ -58,21 +74,42 @@ export default function ComptairSearchPage() {
     loadStreets();
   }, []);
 
-  // Handle input change with autocomplete
+  // Handle input change with autocomplete (ignoring leading civic numbers)
   const handleInputChange = useCallback(
     (value: string) => {
       setQuery(value);
       setError("");
 
-      if (value.trim().length > 0) {
-        const filtered = allStreets
-          .filter((street) =>
-            street.nom.toLowerCase().includes(value.toLowerCase()),
-          )
-          .slice(0, 8);
+      let cleanSearch = value.trim().toLowerCase();
+      if (cleanSearch.length > 0) {
+        const parts = cleanSearch.split(/\s+/);
 
-        setSuggestions(filtered);
-        setShowSuggestions(true);
+        // If user typed a civic number first, skip it so the street name triggers suggestions
+        if (
+          /^\d+$/.test(parts[0]) &&
+          parts.length > 1 &&
+          !STREET_TYPE_WORDS.has(parts[1])
+        ) {
+          parts.shift();
+        }
+
+        const streetSearchCore = parts.join(" ");
+
+        if (streetSearchCore.length > 0) {
+          const filtered = allStreets
+            .filter(
+              (street) =>
+                street.nom.toLowerCase().includes(streetSearchCore) ||
+                street.ville.toLowerCase().includes(streetSearchCore),
+            )
+            .slice(0, 8);
+
+          setSuggestions(filtered);
+          setShowSuggestions(true);
+        } else {
+          setSuggestions([]);
+          setShowSuggestions(false);
+        }
       } else {
         setSuggestions([]);
         setShowSuggestions(false);
@@ -81,7 +118,7 @@ export default function ComptairSearchPage() {
     [allStreets],
   );
 
-  // Handle search
+  // Handle search action
   const handleSearch = async (searchQuery: string) => {
     const queryToSearch = searchQuery || query;
 
@@ -90,7 +127,7 @@ export default function ComptairSearchPage() {
       return;
     }
 
-    loading && setLoading(true);
+    setLoading(true);
     setError("");
     setShowSuggestions(false);
 
@@ -115,9 +152,32 @@ export default function ComptairSearchPage() {
   };
 
   const handleSuggestionClick = (suggestion: StreetSuggestion) => {
-    setQuery(suggestion.nom);
+    const currentParts = query.trim().split(/\s+/);
+    let prefix = "";
+
+    // 1. Check if the first word typed is a valid civic number
+    if (
+      /^\d+$/.test(currentParts[0]) &&
+      !STREET_TYPE_WORDS.has(currentParts[1])
+    ) {
+      const typedNumber = currentParts[0];
+
+      // 2. Look at the suggestion name (e.g., "100e Avenue" or "103e Avenue")
+      const suggestionNorm = suggestion.nom.toLowerCase().trim();
+
+      // 3. CRITICAL FIX: If the suggestion naturally starts with this number sequence
+      // (e.g., "100e" starts with "10"), DO NOT duplicate it as a civic number!
+      if (suggestionNorm.startsWith(typedNumber.toLowerCase())) {
+        prefix = ""; // Reset prefix to empty so it doesn't duplicate
+      } else {
+        prefix = `${typedNumber} `; // Keep it as a real civic number (e.g., "10 rue des Alouettes")
+      }
+    }
+
+    const nextQuery = `${prefix}${suggestion.nom}${suggestion.ville ? ` ${suggestion.ville}` : ""}`;
+    setQuery(nextQuery);
     setShowSuggestions(false);
-    handleSearch(suggestion.nom);
+    handleSearch(nextQuery);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -146,7 +206,9 @@ export default function ComptairSearchPage() {
 
   const handleRangeClick = (match: SearchMatch) => {
     const nextQuery =
-      match.from !== null ? `${match.from} ${match.nom}` : match.nom;
+      match.from !== null
+        ? `${match.from} ${match.nom} ${match.ville}`
+        : `${match.nom} ${match.ville}`;
 
     setQuery(nextQuery);
     setError("");
@@ -158,25 +220,24 @@ export default function ComptairSearchPage() {
     });
   };
 
-  // FIXED: Implemented formatRange to cleanly display address splits
   const formatRange = (m: SearchMatch) => {
     if (m.from !== null && m.to !== null) {
-      return `No. ${m.from} à ${m.to} ${m.nom}`;
+      return `${m.from} à ${m.to} ${m.nom} (${m.ville})`;
     }
-    return m.nom;
+    return `${m.nom} (${m.ville})`;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[url('/bg.jpg')] bg-cover bg-center bg-no-repeat p-6 flex flex-col justify-center items-center">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,23,42,0.85)_0%,rgba(15,23,42,0.6)_50%,rgba(15,23,42,0.9)_100%)] pointer-events-none z-0" />
+      <div className="max-w-4xl mx-auto w-full relative z-10">
         {/* Header */}
         <div className="mb-12 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent mb-3">
-            Trouver votre comptoir alimentaire à St-Jérôme
+          <h1 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-white/90 to-white/80 bg-clip-text text-transparent mb-3">
+            Trouver votre comptoir alimentaire
           </h1>
-          <p className="text-slate-600 text-sm md:text-md">
-            Entrez le nom de votre rue pour découvrir le comptoir alimentaire
-            qui lui est associé.
+          <p className="text-white/90 text-2xl md:text-md">
+            Entrez le nom de votre rue
           </p>
         </div>
 
@@ -188,19 +249,19 @@ export default function ComptairSearchPage() {
               type="text"
               value={query}
               onChange={(e) => handleInputChange(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               onFocus={() =>
                 query.trim().length > 0 && setShowSuggestions(true)
               }
-              placeholder="Ex: 8 rue des Alouettes ou 103e Avenue"
-              className="w-full px-6 py-4 text-lg text-black placeholder:text-gray-400 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+              placeholder="Ex: Villemont, rue de"
+              className="w-full px-6 py-4 text-lg bg-white text-gray-900 placeholder:text-gray-400 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
             />
             <button
               onClick={() => handleSearch(query)}
               disabled={loading}
               className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:bg-slate-400 transition-colors duration-200 font-medium"
             >
-              {loading ? "recherche..." : "Rechercher"}
+              {loading ? "Recherche..." : "Rechercher"}
             </button>
           </div>
 
@@ -217,6 +278,11 @@ export default function ComptairSearchPage() {
                 >
                   <div className="font-medium text-slate-900">
                     {suggestion.nom}
+                    {suggestion.ville && (
+                      <span className="text-sm font-normal text-slate-500 ml-2">
+                        ({suggestion.ville})
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}
@@ -237,109 +303,137 @@ export default function ComptairSearchPage() {
             {result.found ? (
               <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-blue-500">
                 <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 border-b border-blue-200">
-                  <p className="text-sm font-semibold text-blue-500 tracking-wider mb-2 uppercase">
+                  <p className="text-sm font-semibold text-blue-600 tracking-wider mb-2 uppercase">
                     Votre comptoir assigné
                   </p>
-                  <h2 className="text-3xl font-bold text-gray-700">
+                  <h2 className="text-3xl font-bold text-gray-800">
                     {result.comptoir}
                   </h2>
                 </div>
 
                 <div className="p-6 space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-500 tracking-wider">
+                  <h3 className="text-xs font-bold text-red-700 tracking-wider uppercase">
+                    * Veuillez contacter le comptoir avant de vous présenter si
+                    vous n’êtes pas inscrit *
+                  </h3>
+                  <h3 className="text-sm font-semibold text-slate-500 tracking-wider border-b pb-1">
                     Directions et informations
                   </h3>
                   {result.matches.map((match, idx) => (
                     <div
                       key={idx}
-                      className="space-y-2 text-[0.750rem] border-b border-slate-50 last:border-0 pb-2"
+                      className="space-y-3 text-sm text-slate-700 border-b border-slate-100 last:border-0 pb-4 last:pb-0"
                     >
                       <div className="flex justify-between">
-                        <span className="text-slate-600">Recherche :</span>
+                        <span className="text-slate-500">Secteur :</span>
                         <span className="font-medium text-gray-900">
                           {match.nom}{" "}
                           {match.from !== null
-                            ? `(${match.from} à ${match.to})`
+                            ? `( ${match.from} à ${match.to} )`
                             : ""}
+                          {match.ville ? ` - ${match.ville}` : ""}
                         </span>
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-600">
-                            Adresse de votre comptoire alimentaire :
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Courriel:</span>
+                        {match.courriel ? (
+                          <a
+                            href={`mailto:${match.courriel}`}
+                            className="font-medium text-blue-600 hover:underline cursor-pointer"
+                          >
+                            {match.courriel}
+                          </a>
+                        ) : (
+                          <span className="font-medium text-gray-400">
+                            Non disponible
                           </span>
+                        )}
+                      </div>
 
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">Téléphone:</span>
+                        {match.telephone ? (
+                          <a
+                            href={`tel:${match.telephone.replace(/\s+/g, "")}`}
+                            className="text-blue-600 font-medium hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Phone size={14} className="text-slate-400" />
+                            {match.telephone}
+                          </a>
+                        ) : (
+                          <span className="font-medium text-gray-400">
+                            Non disponible
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-start gap-4">
+                          <span className="text-slate-500 shrink-0">
+                            Adresse du comptoir :
+                          </span>
                           <button
                             onClick={() => {
-                              const query = `${match.adress} ${match.ville}`;
-                              const url = `https://maps.google.com/?q=${encodeURIComponent(query)}`;
-                              window.open(url, "_blank");
+                              const geoQuery = `${match.adress} ${match.ville}`;
+                              window.open(
+                                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(geoQuery)}`,
+                                "_blank",
+                              );
                             }}
-                            className="flex items-center gap-1 text-blue-600 hover:underline cursor-pointer"
+                            className="flex items-start gap-1 text-blue-600 hover:underline cursor-pointer text-right font-medium"
                           >
                             <MapPin
-                              size={16}
-                              className="text-slate-400 hidden md:inline"
+                              size={14}
+                              className="text-slate-400 mt-0.5 inline shrink-0"
                             />
-                            <span className="break-words text-right">
+                            <span>
                               {match.adress}, {match.ville}
                             </span>
                           </button>
                         </div>
 
-                        {/* Maps preview integration */}
-                        <a
-                          href={`https://maps.google.com/?q=${encodeURIComponent(
-                            `${match.adress} ${match.ville}`,
-                          )}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
+                        {/* Maps Embed View */}
+                        <div className="w-full h-40 rounded-lg overflow-hidden border border-slate-200 mt-2">
                           <iframe
                             title="Carte de localisation"
                             width="100%"
-                            height="160"
+                            height="100%"
                             loading="lazy"
-                            className="rounded-lg"
-                            src={`https://maps.google.com/maps?q=${encodeURIComponent(
-                              `${match.adress} ${match.ville}`,
-                            )}&output=embed`}
+                            style={{ border: 0 }}
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(`${match.adress} ${match.ville}`)}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
                           />
-                        </a>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             ) : result.matches && result.matches.length > 0 ? (
-              /* Street Found but Ambiguous (e.g. Alouettes) */
+              /* Multiple matches returned (No civic number or town mismatch) */
               <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-blue-500">
                 <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6">
                   <p className="text-blue-900 font-semibold text-lg">
-                    Numéro de porte requis
-                  </p>
-                  <p className="text-blue-700 text-sm mt-2">
-                    Cette rue est desservie par plusieurs comptoirs. Veuillez
-                    ajouter votre numéro de porte (ex: 8 {result.matches[0].nom}
-                    ).
+                    Sélectionnez votre adresse
                   </p>
                   <div className="mt-4 border-t border-blue-200 pt-4">
                     <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-2">
-                      Options :
+                      Secteurs disponibles :
                     </p>
                     <ul className="space-y-2">
                       {result.matches.map((m, i) => (
-                        <li key={i} className="text-sm text-blue-800">
+                        <li key={i} className="text-sm">
                           <button
                             type="button"
                             onClick={() => handleRangeClick(m)}
-                            className="w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full rounded-md px-4 py-3 text-left transition-colors bg-white/60 hover:bg-white border border-blue-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
-                            <span className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                              <span className="font-semibold">
+                            <span className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                              <span className="font-semibold text-slate-800">
                                 {formatRange(m)}
                               </span>
-                              <span className="font-bold">{m.comptoir}</span>
+                              <span className="font-bold text-blue-600 sm:text-right">
+                                {m.comptoir}
+                              </span>
                             </span>
                           </button>
                         </li>
@@ -349,14 +443,15 @@ export default function ComptairSearchPage() {
                 </div>
               </div>
             ) : (
-              /* Truly Not Found */
-              <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-amber-500">
-                <div className="bg-gradient-to-r from-amber-50 to-amber-100 p-6">
-                  <p className="text-amber-900 font-semibold text-lg">
+              /* No Results Found */
+              <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-red-500">
+                <div className="bg-gradient-to-r from-red-50 to-red-100 p-6">
+                  <p className="text-red-900 font-semibold text-lg">
                     Aucun résultat trouvé
                   </p>
-                  <p className="text-amber-700 text-sm mt-2">
-                    Vérifiez l'orthographe ou essayez une autre variation.
+                  <p className="text-red-700 text-sm mt-2">
+                    Nous n'avons pas pu associer cette adresse. Vérifiez
+                    l'orthographe ou essayez d'ajouter le nom de la ville.
                   </p>
                 </div>
               </div>
@@ -365,14 +460,24 @@ export default function ComptairSearchPage() {
         )}
 
         {!result && (
-          <div className="mt-12 bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
             <h3 className="font-semibold text-slate-900 mb-3">
               Conseils de recherche
             </h3>
             <ul className="space-y-2 text-slate-700 text-sm">
-              <li>✓ Entrez le numéro et la rue (ex: "8 rue des Alouettes")</li>
-              <li>✓ Sélectionnez une suggestion dans la liste</li>
-              <li>✓ Pour les rues numérotées, essayez "103e" ou "103"</li>
+              <li>
+                ✓ Entrez simplement le nom de votre rue (ex:{" "}
+                <strong>" Villemont "</strong>)
+              </li>
+              <li>
+                ✓ Si une rue traverse plusieurs villes, vous pouvez ajouter la
+                ville à la fin (ex:{" "}
+                <strong>" 103e Avenue, Saint-Jérôme"</strong>)
+              </li>
+              <li>
+                ✓ Vous pouvez aussi l'ajouter au début pour une correspondance
+                plus précise (ex: <strong>" 8 Villemont, rue de "</strong>)
+              </li>
             </ul>
           </div>
         )}

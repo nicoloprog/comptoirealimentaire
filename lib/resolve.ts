@@ -8,6 +8,8 @@ export interface StreetEntry {
   ville: string;
   comptoir: string;
   adress: string;
+  courriel: string;
+  telephone: string;
 }
 
 interface StreetRow {
@@ -18,6 +20,8 @@ interface StreetRow {
   comptoir?: string | null;
   adress?: string | null;
   address?: string | null;
+  courriel?: string | null;
+  telephone?: string | null;
 }
 
 const STREET_TYPE_WORDS = new Set([
@@ -37,6 +41,19 @@ function hasRange(
   entry: StreetEntry,
 ): entry is StreetEntry & { from: number; to: number } {
   return entry.from !== null && entry.to !== null;
+}
+
+/**
+ * Normalizes regular text blocks (like city names) for loose comparisons
+ */
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
@@ -76,9 +93,9 @@ function normalizeStreetName(name: string): string {
 }
 
 /**
- * Extracts house number and street name from a search string
+ * Extracts house number, optional city keyword, and street name from a search string
  */
-function extractQuery(input: string) {
+function extractQuery(input: string, knownVilles: Set<string>) {
   const cleaned = input
     .toLowerCase()
     .normalize("NFD")
@@ -88,28 +105,39 @@ function extractQuery(input: string) {
 
   const parts = cleaned.split(" ");
   let number: number | null = null;
+  let detectedVille: string | null = null;
 
   if (parts.length === 0) {
-    return { number, street: "" };
+    return { number, street: "", ville: null };
   }
 
-  // Extract a civic number at the beginning, but keep numeric street names
-  // such as "100 Avenue" or "100e Avenue" as the street when no civic number
-  // was typed.
+  // 1. Extract a civic number at the beginning (if it isn't an ordinal street name prefix)
   if (/^\d+$/.test(parts[0]) && !STREET_TYPE_WORDS.has(parts[1])) {
     number = parseInt(parts[0], 10);
     parts.shift();
   }
 
-  // Also support "100e Avenue 305" for people who type the civic number last.
+  // 2. Extract a civic number at the end if it wasn't captured up front
   const lastPart = parts[parts.length - 1];
   if (number === null && /^\d+$/.test(lastPart)) {
     number = parseInt(lastPart, 10);
     parts.pop();
   }
 
+  // 3. Extract city name if typed at the end of the input string sequence
+  if (parts.length > 0) {
+    const lastWordNormalized = normalizeText(parts[parts.length - 1]);
+    for (const v of knownVilles) {
+      if (normalizeText(v) === lastWordNormalized) {
+        detectedVille = v;
+        parts.pop(); // Remove the city name keyword out of the street query core
+        break;
+      }
+    }
+  }
+
   const street = normalizeStreetName(parts.join(" "));
-  return { number, street };
+  return { number, street, ville: detectedVille };
 }
 
 /**
@@ -132,6 +160,8 @@ export function buildStreetMap(data: StreetRow[]): Map<string, StreetEntry[]> {
       ville: row.ville?.toString() || "",
       comptoir: row.comptoir?.toString() || "",
       adress: (row.adress ?? row.address)?.toString() || "",
+      courriel: row.courriel?.toString() || "",
+      telephone: row.telephone?.toString() || "",
     };
 
     if (!entry.nom) continue;
@@ -170,7 +200,7 @@ function findEntriesByStreet(
       const directMatch = street.includes(key) || key.includes(street);
       if (directMatch) {
         value.forEach((entry) => {
-          const id = `${entry.nom}|${entry.from}|${entry.to}|${entry.comptoir}|${entry.adress}`;
+          const id = `${entry.nom}|${entry.from}|${entry.to}|${entry.comptoir}|${entry.ville}`;
           if (!seen.has(id)) {
             matches.push(entry);
             seen.add(id);
@@ -190,13 +220,32 @@ export function resolveComptoir(
   query: string,
   streetMap: Map<string, StreetEntry[]>,
 ) {
-  const { number, street } = extractQuery(query);
+  // Collect all known towns from sheet dynamically to enable contextual string matching
+  const knownVilles = new Set<string>();
+  streetMap.forEach((entries) => {
+    entries.forEach((e) => {
+      if (e.ville) knownVilles.add(e.ville);
+    });
+  });
+
+  const { number, street, ville } = extractQuery(query, knownVilles);
 
   // 1. Get entries for the street
-  const entries = findEntriesByStreet(street, streetMap);
+  let entries = findEntriesByStreet(street, streetMap);
 
   if (entries.length === 0) {
     return { comptoir: null, matches: [], reason: "Rue non trouvée." };
+  }
+
+  // Filter out records by city if a specific town keyword was matched out of the query string
+  if (ville) {
+    const targetVilleNormalized = ville.toLowerCase();
+    const specificCityMatches = entries.filter(
+      (e) => e.ville.toLowerCase() === targetVilleNormalized,
+    );
+    if (specificCityMatches.length > 0) {
+      entries = specificCityMatches;
+    }
   }
 
   // CASE 1: House number is provided
@@ -211,44 +260,45 @@ export function resolveComptoir(
       return {
         comptoir: match.comptoir,
         matches: [match],
-        reason: `Succès : Le numéro ${number} correspond à ce comptoir.`,
+        reason: `Succès : Le numéro ${number} correspond à ce comptoir (${match.ville}).`,
       };
     }
 
+    // Fallback: Check if there's a record with no numbers specified (covers the entire street)
     const fallbackMatch = entries.find((e) => !hasRange(e));
     if (fallbackMatch) {
       return {
         comptoir: fallbackMatch.comptoir,
         matches: [fallbackMatch],
-        reason: `Succès : cette rue correspond à ce comptoir.`,
+        reason: `Succès : Cette rue correspond globalement à ce comptoir (${fallbackMatch.ville}).`,
       };
     }
 
     return {
       comptoir: null,
       matches: entries,
-      reason: `Le numéro ${number} n'est pas répertorié pour cette rue.`,
+      reason: `Le numéro ${number} n'est pas répertorié dans les plages pour cette rue.`,
     };
   }
 
-  // CASE 2: No house number provided
-  // Get all unique comptoirs for this street
+  // CASE 2: No house number provided (Street name search / only city specified)
   const uniqueComptoirs = [...new Set(entries.map((e) => e.comptoir))];
+  const uniqueVilles = [...new Set(entries.map((e) => e.ville))];
 
-  // If ALL entries lead to the same comptoir, return it immediately
+  // If ALL remaining entries lead to the exact same destination point
   if (uniqueComptoirs.length === 1) {
     return {
       comptoir: uniqueComptoirs[0],
       matches: entries,
-      reason: "Toute la rue est desservie par le même comptoir.",
+      reason: `Toute la rue est desservie par le même comptoir (${uniqueVilles.join(", ")}).`,
     };
   }
 
-  // If there are multiple comptoirs, we MUST ask for a house number
+  // If there are multiple comptoirs or cross-city boundary splits, ask for precision
   return {
     comptoir: null,
     matches: entries,
-    reason: `Plusieurs comptoirs desservent cette rue (${uniqueComptoirs.length}). Veuillez entrer votre numéro de porte pour préciser.`,
+    reason: `Cette rue s'étend sur plusieurs secteurs (${uniqueVilles.length} villes identifiées). Veuillez entrer votre numéro civique ou préciser la ville.`,
   };
 }
 
