@@ -476,8 +476,9 @@ export default function ComptairSearchPage() {
                 <strong>" 103e Avenue, Saint-Jérôme"</strong>)
               </li>
               <li>
-                ✓ Vous pouvez aussi l'ajouter au début pour une correspondance
-                plus précise (ex: <strong>" 8 Villemont, rue de "</strong>)
+                ✓ Vous pouvez aussi ajouter votre adresse au début pour une
+                correspondance plus précise (ex:{" "}
+                <strong>" 8 Villemont, rue de "</strong>)
               </li>
             </ul>
           </div>
