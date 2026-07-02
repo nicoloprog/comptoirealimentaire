@@ -330,9 +330,9 @@ export default function ComptairSearchPage() {
                       key={idx}
                       className="space-y-3 text-sm text-slate-700 border-b border-slate-100 last:border-0 pb-4 last:pb-0"
                     >
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Secteur :</span>
-                        <span className="font-medium text-gray-900">
+                      <div className="flex justify-between ">
+                        <span className="text-slate-500">Secteur:</span>
+                        <span className="max-w-[75%] font-large text-gray-900">
                           {match.nom}{" "}
                           {match.from !== null
                             ? `( ${match.from} à ${match.to} )`
