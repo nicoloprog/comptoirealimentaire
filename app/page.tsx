@@ -334,8 +334,9 @@ export default function ComptairSearchPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[url('/bg.jpg')] bg-cover bg-center bg-no-repeat p-6 flex flex-col justify-center items-center">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,23,42,0.85)_0%,rgba(15,23,42,0.6)_50%,rgba(15,23,42,0.9)_100%)] pointer-events-none z-0" />
+    <div className="relative isolate min-h-[100dvh] overflow-x-hidden p-6 flex flex-col justify-center items-center">
+      <div className="fixed inset-0 -z-20 bg-[url('/bg.jpg')] bg-cover bg-center bg-no-repeat" />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(15,23,42,0.85)_0%,rgba(15,23,42,0.6)_50%,rgba(15,23,42,0.9)_100%)] pointer-events-none" />
       <div className="max-w-4xl mx-auto w-full relative z-10">
         {/* Header */}
         <div className="mb-12 text-center">
