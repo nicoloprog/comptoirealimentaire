@@ -21,7 +21,7 @@ const doc = new GoogleSpreadsheet(
 );
 
 let streetMap: Map<string, StreetEntry[]> | null = null;
-let rawData: any[] = [];
+let rawData: StreetEntry[] = [];
 
 /**
  * Load data directly from Google Sheet (Live data)
@@ -56,7 +56,7 @@ async function loadData() {
         const courriel = (row.get("courriel") || "").trim();
         const telephone = (row.get("telephone") || "").trim();
 
-        if (!nom) return null;
+        if (!nom && !ville) return null;
 
         return {
           from,
@@ -109,7 +109,11 @@ export async function GET(req: Request) {
 
     if (action === "list") {
       const streets = getAllStreets(map);
+      const cities = Array.from(
+        new Set(rawData.map((entry) => entry.ville).filter(Boolean)),
+      ).sort((a, b) => a.localeCompare(b, "fr"));
       const suggestions = rawData
+        .filter((entry) => entry.nom)
         .map((entry) => ({
           from: entry.from,
           to: entry.to,
@@ -128,6 +132,7 @@ export async function GET(req: Request) {
 
       return NextResponse.json({
         streets,
+        cities,
         suggestions,
         count: suggestions.length,
       });
@@ -139,7 +144,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       comptoir: result.comptoir,
       reason: result.reason,
-      matches: result.matches.map((m: any) => ({
+      matches: result.matches.map((m) => ({
         from: m.from,
         to: m.to,
         nom: m.nom,

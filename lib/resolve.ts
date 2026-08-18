@@ -37,6 +37,8 @@ const STREET_TYPE_WORDS = new Set([
   "ch",
 ]);
 
+const CITY_KEY_PREFIX = "__city:";
+
 function hasRange(
   entry: StreetEntry,
 ): entry is StreetEntry & { from: number; to: number } {
@@ -51,9 +53,53 @@ function normalizeText(text: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, "")
+    .replace(/[^\w\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function getEntryId(entry: StreetEntry): string {
+  return `${entry.nom}|${entry.from}|${entry.to}|${entry.ville}|${entry.comptoir}|${entry.adress}`;
+}
+
+function getUniqueEntries(streetMap: Map<string, StreetEntry[]>): StreetEntry[] {
+  const entries: StreetEntry[] = [];
+  const seen = new Set<string>();
+
+  streetMap.forEach((matches) => {
+    matches.forEach((entry) => {
+      const id = getEntryId(entry);
+      if (!seen.has(id)) {
+        entries.push(entry);
+        seen.add(id);
+      }
+    });
+  });
+
+  return entries;
+}
+
+function findVilleInQuery(input: string, knownVilles: Set<string>): string | null {
+  const normalizedInput = normalizeText(input);
+  const inputWords = normalizedInput.split(" ").filter(Boolean);
+
+  const sortedVilles = Array.from(knownVilles).sort(
+    (a, b) => normalizeText(b).length - normalizeText(a).length,
+  );
+
+  for (const ville of sortedVilles) {
+    const villeWords = normalizeText(ville).split(" ").filter(Boolean);
+    if (villeWords.length === 0 || villeWords.length > inputWords.length) {
+      continue;
+    }
+
+    const suffix = inputWords.slice(-villeWords.length);
+    if (suffix.join(" ") === villeWords.join(" ")) {
+      return ville;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -76,8 +122,9 @@ function normalizeStreetName(name: string): string {
     }
   }
 
-  // Remove punctuation except spaces
-  str = str.replace(/[^\w\s]/g, "");
+  // Convert punctuation to spaces so hyphenated names like Saint-Georges
+  // match whether users type the hyphen or a space.
+  str = str.replace(/[^\w\s]/g, " ").replace(/\s+/g, " ");
 
   // Normalize common street types
   str = str
@@ -100,15 +147,24 @@ function extractQuery(input: string, knownVilles: Set<string>) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
   const parts = cleaned.split(" ");
   let number: number | null = null;
-  let detectedVille: string | null = null;
+  const detectedVille = findVilleInQuery(input, knownVilles);
 
   if (parts.length === 0) {
     return { number, street: "", ville: null };
+  }
+
+  if (detectedVille) {
+    const villeWords = normalizeText(detectedVille).split(" ").filter(Boolean);
+    const suffix = parts.slice(-villeWords.length);
+    if (suffix.join(" ") === villeWords.join(" ")) {
+      parts.splice(-villeWords.length);
+    }
   }
 
   // 1. Extract a civic number at the beginning (if it isn't an ordinal street name prefix)
@@ -122,18 +178,6 @@ function extractQuery(input: string, knownVilles: Set<string>) {
   if (number === null && /^\d+$/.test(lastPart)) {
     number = parseInt(lastPart, 10);
     parts.pop();
-  }
-
-  // 3. Extract city name if typed at the end of the input string sequence
-  if (parts.length > 0) {
-    const lastWordNormalized = normalizeText(parts[parts.length - 1]);
-    for (const v of knownVilles) {
-      if (normalizeText(v) === lastWordNormalized) {
-        detectedVille = v;
-        parts.pop(); // Remove the city name keyword out of the street query core
-        break;
-      }
-    }
   }
 
   const street = normalizeStreetName(parts.join(" "));
@@ -164,7 +208,12 @@ export function buildStreetMap(data: StreetRow[]): Map<string, StreetEntry[]> {
       telephone: row.telephone?.toString() || "",
     };
 
-    if (!entry.nom) continue;
+    if (!entry.nom) {
+      if (entry.ville) {
+        addToMap(`${CITY_KEY_PREFIX}${normalizeText(entry.ville)}`, entry);
+      }
+      continue;
+    }
 
     const normalized = normalizeStreetName(entry.nom);
     addToMap(normalized, entry);
@@ -197,6 +246,7 @@ function findEntriesByStreet(
     const seen = new Set<string>();
 
     for (const [key, value] of streetMap.entries()) {
+      if (key.startsWith(CITY_KEY_PREFIX)) continue;
       const directMatch = street.includes(key) || key.includes(street);
       if (directMatch) {
         value.forEach((entry) => {
@@ -229,6 +279,47 @@ export function resolveComptoir(
   });
 
   const { number, street, ville } = extractQuery(query, knownVilles);
+
+  if (!street && ville) {
+    const cityEntries = getUniqueEntries(streetMap).filter(
+      (entry) => normalizeText(entry.ville) === normalizeText(ville),
+    );
+
+    if (cityEntries.length === 0) {
+      return {
+        comptoir: null,
+        matches: [],
+        reason: `Aucune rue trouvée pour ${ville}.`,
+      };
+    }
+
+    const uniqueDestinations = new Map<string, StreetEntry>();
+    cityEntries.forEach((entry) => {
+      const key = `${normalizeText(entry.comptoir)}|${normalizeText(entry.adress)}`;
+      if (!uniqueDestinations.has(key)) {
+        uniqueDestinations.set(key, entry);
+      }
+    });
+
+    if (uniqueDestinations.size === 1) {
+      const onlyMatch = Array.from(uniqueDestinations.values())[0];
+      return {
+        comptoir: onlyMatch.comptoir,
+        matches: [onlyMatch],
+        reason: `${ville} est desservie par un seul comptoir.`,
+      };
+    }
+
+    return {
+      comptoir: null,
+      matches: cityEntries,
+      reason: `${cityEntries.length} rues ou secteurs sont disponibles pour ${ville}.`,
+    };
+  }
+
+  if (!street) {
+    return { comptoir: null, matches: [], reason: "Rue ou ville non trouvée." };
+  }
 
   // 1. Get entries for the street
   let entries = findEntriesByStreet(street, streetMap);
@@ -308,7 +399,9 @@ export function resolveComptoir(
 export function getAllStreets(streetMap: Map<string, StreetEntry[]>): string[] {
   const streets = new Set<string>();
   streetMap.forEach((matches) => {
-    matches.forEach((entry) => streets.add(entry.nom));
+    matches.forEach((entry) => {
+      if (entry.nom) streets.add(entry.nom);
+    });
   });
   return Array.from(streets).sort();
 }

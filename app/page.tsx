@@ -1,6 +1,5 @@
 "use client";
 
-import { MapPin, Phone } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 
 interface SearchMatch {
@@ -22,8 +21,20 @@ interface SearchResult {
 }
 
 interface StreetSuggestion {
+  kind: "street" | "city";
   nom: string;
   ville: string;
+}
+
+interface ApiSuggestion {
+  nom: string;
+  ville: string;
+}
+
+declare global {
+  interface Window {
+    dataLayer?: Array<Record<string, unknown>>;
+  }
 }
 
 const STREET_TYPE_WORDS = new Set([
@@ -38,6 +49,63 @@ const STREET_TYPE_WORDS = new Set([
   "chemin",
   "ch",
 ]);
+
+function hasCookieConsent(): boolean {
+  if (typeof document === "undefined") return false;
+
+  return document.cookie
+    .split("; ")
+    .some((item) => item === "comptoir_cookie_consent=accepted");
+}
+
+function getSearchTrackingShape(
+  searchQuery: string,
+  allSuggestions: StreetSuggestion[],
+) {
+  const parts = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hasCivicNumber =
+    parts.length > 1 &&
+    /^\d+$/.test(parts[0]) &&
+    !STREET_TYPE_WORDS.has(parts[1]);
+  const exactCityMatch = allSuggestions.some(
+    (suggestion) =>
+      suggestion.kind === "city" &&
+      suggestion.ville.toLowerCase() === searchQuery.trim().toLowerCase(),
+  );
+  const searchType = hasCivicNumber
+    ? "address"
+    : exactCityMatch
+      ? "city"
+      : "street";
+
+  return {
+    event: "comptoir_search",
+    search_type: searchType,
+    has_civic_number: hasCivicNumber,
+  };
+}
+
+function trackSearch(searchQuery: string, allSuggestions: StreetSuggestion[]) {
+  if (!hasCookieConsent()) return;
+
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push(getSearchTrackingShape(searchQuery, allSuggestions));
+}
+
+function trackSearchResult(data: SearchResult) {
+  if (!hasCookieConsent()) return;
+
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({
+    event: "comptoir_search_result",
+    result_type: data.found
+      ? "single_result"
+      : data.matches.length > 0
+        ? "multiple_results"
+        : "no_result",
+    match_count: data.matches.length,
+  });
+}
 
 export default function ComptairSearchPage() {
   const [query, setQuery] = useState("");
@@ -56,15 +124,33 @@ export default function ComptairSearchPage() {
       try {
         const res = await fetch("/api/resolve?action=list");
         const data = await res.json();
-        if (data.streets) {
-          // Expecting data.streets to be an array of objects: { nom: string, ville: string }
-          // If it is an array of strings, it defaults safely gracefully
-          setAllStreets(
-            data.streets.map((street: any) => ({
-              nom: typeof street === "object" ? street.nom : street,
-              ville: typeof street === "object" ? street.ville || "" : "",
-            })),
+        const citySuggestions: StreetSuggestion[] = (data.cities || []).map(
+          (city: string) => ({
+            kind: "city",
+            nom: city,
+            ville: city,
+          }),
+        );
+
+        if (data.suggestions) {
+          const streetSuggestions = data.suggestions.map(
+            (street: ApiSuggestion) => ({
+              kind: "street" as const,
+              nom: street.nom,
+              ville: street.ville || "",
+            }),
           );
+
+          setAllStreets([...citySuggestions, ...streetSuggestions]);
+        } else if (data.streets) {
+          setAllStreets([
+            ...citySuggestions,
+            ...data.streets.map((street: string) => ({
+              kind: "street" as const,
+              nom: street,
+              ville: "",
+            })),
+          ]);
         }
       } catch (err) {
         console.error("Failed to load streets:", err);
@@ -80,7 +166,7 @@ export default function ComptairSearchPage() {
       setQuery(value);
       setError("");
 
-      let cleanSearch = value.trim().toLowerCase();
+      const cleanSearch = value.trim().toLowerCase();
       if (cleanSearch.length > 0) {
         const parts = cleanSearch.split(/\s+/);
 
@@ -135,6 +221,7 @@ export default function ComptairSearchPage() {
     setLoading(true);
     setError("");
     setShowSuggestions(false);
+    trackSearch(queryToSearch, allStreets);
 
     try {
       const res = await fetch(
@@ -147,6 +234,7 @@ export default function ComptairSearchPage() {
         setResult(null);
       } else {
         setResult(data);
+        trackSearchResult(data);
       }
     } catch (err) {
       setError("Failed to fetch results. Please try again.");
@@ -157,6 +245,14 @@ export default function ComptairSearchPage() {
   };
 
   const handleSuggestionClick = (suggestion: StreetSuggestion) => {
+    if (suggestion.kind === "city") {
+      setQuery(suggestion.ville);
+      setShowSuggestions(false);
+      inputRef.current?.blur();
+      handleSearch(suggestion.ville);
+      return;
+    }
+
     // Retain the civic number if the user typed one before picking the suggestion
     const currentParts = query.trim().split(/\s+/);
     let prefix = "";
@@ -214,7 +310,7 @@ export default function ComptairSearchPage() {
     const nextQuery =
       match.from !== null
         ? `${match.from} ${match.nom} ${match.ville}`
-        : `${match.nom} ${match.ville}`;
+        : `${match.nom || match.ville}`;
 
     setQuery(nextQuery);
     setError("");
@@ -227,6 +323,10 @@ export default function ComptairSearchPage() {
   };
 
   const formatRange = (m: SearchMatch) => {
+    if (!m.nom) {
+      return m.ville;
+    }
+
     if (m.from !== null && m.to !== null) {
       return `${m.from} à ${m.to} ${m.nom} (${m.ville})`;
     }
@@ -243,7 +343,7 @@ export default function ComptairSearchPage() {
             Trouver votre comptoir alimentaire
           </h1>
           <p className="text-white/90 text-2xl md:text-md">
-            Entrez le nom de votre rue
+            Entrez le nom de votre ville
           </p>
         </div>
 
@@ -284,10 +384,16 @@ export default function ComptairSearchPage() {
                 >
                   <div className="font-medium text-slate-900">
                     {suggestion.nom}
-                    {suggestion.ville && (
-                      <span className="text-sm font-normal text-slate-500 ml-2">
-                        ({suggestion.ville})
+                    {suggestion.kind === "city" ? (
+                      <span className="text-sm font-normal text-blue-600 ml-2">
+                        (ville)
                       </span>
+                    ) : (
+                      suggestion.ville && (
+                        <span className="text-sm font-normal text-slate-500 ml-2">
+                          ({suggestion.ville})
+                        </span>
+                      )
                     )}
                   </div>
                 </button>
@@ -333,11 +439,17 @@ export default function ComptairSearchPage() {
                       <div className="flex justify-between ">
                         <span className="text-slate-500">Secteur:</span>
                         <span className="max-w-[75%] font-large text-gray-900">
-                          {match.nom}{" "}
-                          {match.from !== null
-                            ? `( ${match.from} à ${match.to} )`
-                            : ""}
-                          {match.ville ? ` - ${match.ville}` : ""}
+                          {match.nom ? (
+                            <>
+                              {match.nom}{" "}
+                              {match.from !== null
+                                ? `( ${match.from} à ${match.to} )`
+                                : ""}
+                              {match.ville ? ` - ${match.ville}` : ""}
+                            </>
+                          ) : (
+                            match.ville
+                          )}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -388,7 +500,7 @@ export default function ComptairSearchPage() {
                             className="flex items-start gap-1 text-blue-600 hover:underline cursor-pointer text-right font-medium"
                           >
                             <span>
-                              {match.adress}, {match.ville}
+                              {match.adress},{match.ville}
                             </span>
                           </button>
                         </div>
@@ -451,8 +563,9 @@ export default function ComptairSearchPage() {
                     Aucun résultat trouvé
                   </p>
                   <p className="text-red-700 text-sm mt-2">
-                    Nous n'avons pas pu associer cette adresse. Vérifiez
-                    l'orthographe ou essayez d'ajouter le nom de la ville.
+                    Nous n&apos;avons pas pu associer cette adresse. Vérifiez
+                    l&apos;orthographe ou essayez d&apos;ajouter le nom de la
+                    ville.
                   </p>
                 </div>
               </div>
@@ -467,18 +580,18 @@ export default function ComptairSearchPage() {
             </h3>
             <ul className="space-y-2 text-slate-700 text-sm">
               <li>
-                ✓ Entrez simplement le nom de votre rue (ex:{" "}
-                <strong>" Villemont "</strong>)
+                ✓ Entrez simplement le nom de votre Ville (ex:{" "}
+                <strong>&quot; Villemont &quot;</strong>)
               </li>
               <li>
                 ✓ Si une rue traverse plusieurs villes, vous pouvez ajouter la
                 ville à la fin (ex:{" "}
-                <strong>" 103e Avenue, Saint-Jérôme"</strong>)
+                <strong>&quot; 103e Avenue, Saint-Jérôme&quot;</strong>)
               </li>
               <li>
                 ✓ Vous pouvez aussi ajouter votre adresse au début pour une
                 correspondance plus précise (ex:{" "}
-                <strong>" 8 Villemont, rue de "</strong>)
+                <strong>&quot; 8 Villemont, rue de &quot;</strong>)
               </li>
             </ul>
           </div>
