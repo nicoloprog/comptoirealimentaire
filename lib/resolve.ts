@@ -35,9 +35,11 @@ const STREET_TYPE_WORDS = new Set([
   "blvd",
   "chemin",
   "ch",
+  "terrasse",
 ]);
 
 const CITY_KEY_PREFIX = "__city:";
+const ORDINAL_STREET_PREFIX_PATTERN = /^\d+(e|eme)?$/;
 
 function hasRange(
   entry: StreetEntry,
@@ -53,9 +55,34 @@ function normalizeText(text: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\([^)]*\)/g, " ")
     .replace(/[^\w\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function removeStreetTypes(text: string): string {
+  return text
+    .split(" ")
+    .filter((word) => word && !STREET_TYPE_WORDS.has(word))
+    .join(" ")
+    .trim();
+}
+
+function getStreetTokens(text: string): string[] {
+  return removeStreetTypes(text).split(" ").filter(Boolean);
+}
+
+function includesAllTokens(source: string[], target: string[]) {
+  return target.length > 0 && target.every((token) => source.includes(token));
+}
+
+function isOrdinalStreetPrefix(parts: string[]) {
+  return (
+    parts.length === 2 &&
+    ORDINAL_STREET_PREFIX_PATTERN.test(parts[0]) &&
+    STREET_TYPE_WORDS.has(parts[1])
+  );
 }
 
 function getEntryId(entry: StreetEntry): string {
@@ -111,6 +138,7 @@ function normalizeStreetName(name: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\([^)]*\)/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -134,7 +162,7 @@ function normalizeStreetName(name: string): string {
     .replace(/\b(ch|chemin)\b/g, "chemin");
 
   // Normalize numeric streets (103e -> 103)
-  str = str.replace(/(\d+)e\b/g, "$1");
+  str = str.replace(/(\d+)(e|eme)\b/g, "$1");
 
   return str.trim();
 }
@@ -147,6 +175,7 @@ function extractQuery(input: string, knownVilles: Set<string>) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\([^)]*\)/g, " ")
     .replace(/[^\w\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -167,8 +196,9 @@ function extractQuery(input: string, knownVilles: Set<string>) {
     }
   }
 
-  // 1. Extract a civic number at the beginning (if it isn't an ordinal street name prefix)
-  if (/^\d+$/.test(parts[0]) && !STREET_TYPE_WORDS.has(parts[1])) {
+  // 1. Extract a civic number at the beginning. Keep ordinal street names like
+  // "6e rue" or "6 rue" as the street, not as civic number 6.
+  if (/^\d+$/.test(parts[0]) && !isOrdinalStreetPrefix(parts)) {
     number = parseInt(parts[0], 10);
     parts.shift();
   }
@@ -219,9 +249,7 @@ export function buildStreetMap(data: StreetRow[]): Map<string, StreetEntry[]> {
     addToMap(normalized, entry);
 
     // Index without street type
-    const withoutType = normalized
-      .replace(/\b(rue|avenue|boulevard|chemin)\b/g, "")
-      .trim();
+    const withoutType = removeStreetTypes(normalized);
     addToMap(withoutType, entry);
 
     // Index reversed words
@@ -242,15 +270,24 @@ function findEntriesByStreet(
   let entries = streetMap.get(street);
 
   if (!entries || entries.length === 0) {
+    entries = streetMap.get(removeStreetTypes(street));
+  }
+
+  if (!entries || entries.length === 0) {
     const matches: StreetEntry[] = [];
     const seen = new Set<string>();
+    const queryTokens = getStreetTokens(street);
 
     for (const [key, value] of streetMap.entries()) {
       if (key.startsWith(CITY_KEY_PREFIX)) continue;
-      const directMatch = street.includes(key) || key.includes(street);
+      const keyTokens = getStreetTokens(key);
+      const directMatch =
+        includesAllTokens(keyTokens, queryTokens) ||
+        includesAllTokens(queryTokens, keyTokens);
+
       if (directMatch) {
         value.forEach((entry) => {
-          const id = `${entry.nom}|${entry.from}|${entry.to}|${entry.comptoir}|${entry.ville}`;
+          const id = getEntryId(entry);
           if (!seen.has(id)) {
             matches.push(entry);
             seen.add(id);
@@ -389,7 +426,10 @@ export function resolveComptoir(
   return {
     comptoir: null,
     matches: entries,
-    reason: `Cette rue s'étend sur plusieurs secteurs (${uniqueVilles.length} villes identifiées). Veuillez entrer votre numéro civique ou préciser la ville.`,
+    reason:
+      uniqueVilles.length > 1
+        ? `Cette rue s'étend sur plusieurs villes (${uniqueVilles.join(", ")}). Veuillez entrer votre numéro civique ou préciser la ville.`
+        : "Cette rue est divisée en plusieurs secteurs. Veuillez entrer votre numéro civique pour choisir le bon comptoir.",
   };
 }
 

@@ -48,7 +48,35 @@ const STREET_TYPE_WORDS = new Set([
   "blvd",
   "chemin",
   "ch",
+  "terrasse",
 ]);
+
+function normalizeSearchText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function removeStreetTypeWords(text: string): string {
+  return normalizeSearchText(text)
+    .split(" ")
+    .filter((word) => word && !STREET_TYPE_WORDS.has(word))
+    .join(" ");
+}
+
+function getSuggestionKey(suggestion: StreetSuggestion): string {
+  return `${suggestion.kind}|${normalizeSearchText(suggestion.nom)}|${normalizeSearchText(suggestion.ville)}`;
+}
+
+function getSuggestionSearchText(suggestion: StreetSuggestion): string {
+  const fullText = `${suggestion.nom} ${suggestion.ville}`;
+  return `${normalizeSearchText(fullText)} ${removeStreetTypeWords(fullText)}`;
+}
 
 function hasCookieConsent(): boolean {
   if (typeof document === "undefined") return false;
@@ -141,7 +169,18 @@ export default function ComptairSearchPage() {
             }),
           );
 
-          setAllStreets([...citySuggestions, ...streetSuggestions]);
+          const uniqueSuggestions = [
+            ...citySuggestions,
+            ...streetSuggestions,
+          ].filter(
+            (suggestion, index, items) =>
+              items.findIndex(
+                (item) =>
+                  getSuggestionKey(item) === getSuggestionKey(suggestion),
+              ) === index,
+          );
+
+          setAllStreets(uniqueSuggestions);
         } else if (data.streets) {
           setAllStreets([
             ...citySuggestions,
@@ -166,7 +205,7 @@ export default function ComptairSearchPage() {
       setQuery(value);
       setError("");
 
-      const cleanSearch = value.trim().toLowerCase();
+      const cleanSearch = normalizeSearchText(value);
       if (cleanSearch.length > 0) {
         const parts = cleanSearch.split(/\s+/);
 
@@ -180,14 +219,18 @@ export default function ComptairSearchPage() {
         }
 
         const streetSearchCore = parts.join(" ");
+        const normalizedStreetSearch = normalizeSearchText(streetSearchCore);
+        const streetSearchWithoutType = removeStreetTypeWords(streetSearchCore);
 
         if (streetSearchCore.length > 0) {
           const filtered = allStreets
-            .filter(
-              (street) =>
-                street.nom.toLowerCase().includes(streetSearchCore) ||
-                street.ville.toLowerCase().includes(streetSearchCore),
-            )
+            .filter((street) => {
+              const suggestionText = getSuggestionSearchText(street);
+              return (
+                suggestionText.includes(normalizedStreetSearch) ||
+                suggestionText.includes(streetSearchWithoutType)
+              );
+            })
             .slice(0, 8);
 
           setSuggestions(filtered);
@@ -344,7 +387,8 @@ export default function ComptairSearchPage() {
             Trouver votre comptoir alimentaire
           </h1>
           <p className="text-white/90 text-2xl md:text-md">
-            Entrez le nom de votre ville
+            Entrez le nom de votre rue ou ville dans la barre de recherche
+            ci-dessous.
           </p>
         </div>
 
@@ -360,7 +404,7 @@ export default function ComptairSearchPage() {
               onFocus={() =>
                 query.trim().length > 0 && setShowSuggestions(true)
               }
-              placeholder="Ex: Villemont, rue de"
+              placeholder="( ex. : 167 rue Albert, Saint-Jérôme ou ex. : Prévost )"
               className="w-full px-6 py-4 text-lg bg-white text-gray-900 placeholder:text-gray-400 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
             />
             <button
@@ -577,22 +621,21 @@ export default function ComptairSearchPage() {
         {!result && (
           <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
             <h3 className="font-semibold text-slate-900 mb-3">
-              Conseils de recherche
+              Consignes de recherche :
             </h3>
             <ul className="space-y-2 text-slate-700 text-sm">
               <li>
-                ✓ Entrez simplement le nom de votre Ville (ex:{" "}
-                <strong>&quot; Villemont &quot;</strong>)
+                ✓ Si vous demeurez à <strong>Prévost</strong>,{" "}
+                <strong>Saint-Colomban</strong>,{" "}
+                <strong>Sainte-Hippolyte</strong> ou{" "}
+                <strong>Sainte-Sophie</strong>, veuillez entrer{" "}
+                <strong>SEULEMENT</strong> le nom de votre{" "}
+                <strong>VILLE</strong>. (ex: &quot; Prévost &quot;)
               </li>
               <li>
-                ✓ Si une rue traverse plusieurs villes, vous pouvez ajouter la
-                ville à la fin (ex:{" "}
-                <strong>&quot; 103e Avenue, Saint-Jérôme&quot;</strong>)
-              </li>
-              <li>
-                ✓ Vous pouvez aussi ajouter votre adresse au début pour une
-                correspondance plus précise (ex:{" "}
-                <strong>&quot; 8 Villemont, rue de &quot;</strong>)
+                ✓ Si vous demeurez à <strong>Saint-Jérôme</strong>, veuillez
+                entrer le nom de votre <strong>RUE </strong> dans la barre de
+                recherche ci-dessous. (ex: &quot; rue Albert &quot;)
               </li>
             </ul>
           </div>

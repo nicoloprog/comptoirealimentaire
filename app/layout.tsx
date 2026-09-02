@@ -17,16 +17,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
-  title: "Comptoir alimentaire | Trouver votre comptoir",
+  title: "Aide alimentaire MRC Rivière-du-Nord",
   description:
-    "Trouvez rapidement le comptoir alimentaire assigné à votre ville, votre rue ou votre adresse.",
+    "Trouvez le comptoir alimentaire assigné à votre rue ou votre ville.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Comptoir alimentaire",
+    title: "Aide alimentaire MRC Rivière-du-Nord",
     description:
-      "Trouvez rapidement le comptoir alimentaire assigné à votre ville, votre rue ou votre adresse.",
+      "Trouvez le comptoir alimentaire assigné à votre ville, votre rue ou votre adresse.",
     url: "/",
     siteName: "Comptoir alimentaire",
     locale: "fr_CA",
