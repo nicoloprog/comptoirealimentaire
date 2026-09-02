@@ -501,7 +501,7 @@ export default function ComptairSearchPage() {
                             className="flex items-start gap-1 text-blue-600 hover:underline cursor-pointer text-right font-medium"
                           >
                             <span>
-                              {match.adress},{match.ville}
+                              {match.adress}, {match.ville}
                             </span>
                           </button>
                         </div>
