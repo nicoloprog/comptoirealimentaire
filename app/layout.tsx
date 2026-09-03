@@ -19,16 +19,16 @@ export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title: "Aide alimentaire MRC Rivière-du-Nord",
   description:
-    "Trouvez le comptoir alimentaire assigné à votre rue ou votre ville.",
+    "Aide alimentaire pour Saint-Jérôme, Prévost, Saint-Colomban, Sainte-Sophie et Sainte-Hippolyte. Localisez votre comptoir alimentaire dès maintenant.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
     title: "Aide alimentaire MRC Rivière-du-Nord",
     description:
-      "Trouvez le comptoir alimentaire assigné à votre ville, votre rue ou votre adresse.",
+      "Aide alimentaire pour Saint-Jérôme, Prévost, Saint-Colomban, Sainte-Sophie et Sainte-Hippolyte. Localisez votre comptoir alimentaire dès maintenant.",
     url: "/",
-    siteName: "Comptoir alimentaire",
+    siteName: "Aide alimentaire MRC Rivière-du-Nord",
     locale: "fr_CA",
     type: "website",
   },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Search } from "lucide-react";
 
 interface SearchMatch {
   telephone: string;
@@ -384,7 +385,7 @@ export default function ComptairSearchPage() {
         {/* Header */}
         <div className="mb-12 text-center">
           <h1 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-white/90 to-white/80 bg-clip-text text-transparent mb-3">
-            Trouver votre comptoir alimentaire
+            Trouvez votre comptoir alimentaire
           </h1>
           <p className="text-white/90 text-2xl md:text-md">
             Entrez le nom de votre rue ou ville dans la barre de recherche
@@ -404,15 +405,23 @@ export default function ComptairSearchPage() {
               onFocus={() =>
                 query.trim().length > 0 && setShowSuggestions(true)
               }
-              placeholder="( ex. : 167 rue Albert, Saint-Jérôme ou ex. : Prévost )"
-              className="w-full px-6 py-4 text-lg bg-white text-gray-900 placeholder:text-gray-400 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+              placeholder="(ex : Rue Albert, Saint-Jérôme ou ex : Prévost)"
+              className="w-full py-4 pl-4 pr-14 text-base bg-white text-gray-900 placeholder:text-gray-400 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 sm:px-6 sm:pr-40 sm:text-lg"
             />
             <button
               onClick={() => handleSearch(query)}
               disabled={loading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:bg-slate-400 transition-colors duration-200 font-medium"
+              aria-label={loading ? "Recherche en cours" : "Rechercher"}
+              className="absolute right-0 top-0 flex h-full w-12 items-center justify-center rounded-r-lg bg-[#1D522C] text-white transition-colors duration-200 hover:bg-[#A2BF9B] disabled:bg-slate-400 sm:right-2 sm:top-1/2 sm:h-10 sm:w-auto sm:-translate-y-1/2 sm:rounded-md sm:px-6 sm:text-base sm:font-medium"
             >
-              {loading ? "Recherche..." : "Rechercher"}
+              <Search
+                className="h-5 w-5 sm:hidden"
+                aria-hidden="true"
+                strokeWidth={2.5}
+              />
+              <span className="sr-only sm:not-sr-only">
+                {loading ? "Recherche..." : "Rechercher"}
+              </span>
             </button>
           </div>
 
@@ -425,12 +434,12 @@ export default function ComptairSearchPage() {
                 <button
                   key={idx}
                   onClick={() => handleSuggestionClick(suggestion)}
-                  className="w-full text-left px-6 py-3 hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-b-0 focus:outline-none"
+                  className="w-full text-left px-6 py-3 hover:bg-green-50 transition-colors border-b border-slate-100 last:border-b-0 focus:outline-none"
                 >
                   <div className="font-medium text-slate-900">
                     {suggestion.nom}
                     {suggestion.kind === "city" ? (
-                      <span className="text-sm font-normal text-blue-600 ml-2">
+                      <span className="text-sm font-normal text-green-600 ml-2">
                         (ville)
                       </span>
                     ) : (
@@ -458,9 +467,9 @@ export default function ComptairSearchPage() {
         {result && (
           <div className="space-y-6">
             {result.found ? (
-              <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-blue-500">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 border-b border-blue-200">
-                  <p className="text-sm font-semibold text-blue-600 tracking-wider mb-2 uppercase">
+              <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-green-600">
+                <div className="bg-gradient-to-r from-[#A2BF9B] to-[#A2BF9B] p-6 border-b border-green-200">
+                  <p className="text-sm font-semibold text-[#2D5936] tracking-wider mb-2 uppercase">
                     Votre comptoir assigné
                   </p>
                   <h2 className="text-3xl font-bold text-gray-800">
@@ -568,13 +577,13 @@ export default function ComptairSearchPage() {
               </div>
             ) : result.matches && result.matches.length > 0 ? (
               /* Multiple matches returned (No civic number or town mismatch) */
-              <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-blue-500">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6">
-                  <p className="text-blue-900 font-semibold text-lg">
+              <div className="bg-white rounded-lg shadow-lg overflow-hidden border-l-4 border-green-600">
+                <div className="bg-gradient-to-r from-green-50 to-green-100 p-6">
+                  <p className="text-[#2D5936] font-semibold text-lg">
                     Sélectionnez votre adresse
                   </p>
-                  <div className="mt-4 border-t border-blue-200 pt-4">
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-2">
+                  <div className="mt-4 border-t border-green-200 pt-4">
+                    <p className="text-xs font-bold text-[#2D5936] uppercase tracking-widest mb-2">
                       Secteurs disponibles :
                     </p>
                     <ul className="space-y-2">
@@ -583,13 +592,13 @@ export default function ComptairSearchPage() {
                           <button
                             type="button"
                             onClick={() => handleRangeClick(m)}
-                            className="w-full rounded-md px-4 py-3 text-left transition-colors bg-white/60 hover:bg-white border border-blue-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full rounded-md px-4 py-3 text-left transition-colors bg-white/60 hover:bg-green-100 border border-green-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                           >
                             <span className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                               <span className="font-semibold text-slate-800">
                                 {formatRange(m)}
                               </span>
-                              <span className="font-bold text-blue-600 sm:text-right">
+                              <span className="font-bold text-[#2D5936] sm:text-right">
                                 {m.comptoir}
                               </span>
                             </span>
@@ -619,7 +628,7 @@ export default function ComptairSearchPage() {
         )}
 
         {!result && (
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-600">
             <h3 className="font-semibold text-slate-900 mb-3">
               Consignes de recherche :
             </h3>
@@ -628,14 +637,14 @@ export default function ComptairSearchPage() {
                 ✓ Si vous demeurez à <strong>Prévost</strong>,{" "}
                 <strong>Saint-Colomban</strong>,{" "}
                 <strong>Sainte-Hippolyte</strong> ou{" "}
-                <strong>Sainte-Sophie</strong>, veuillez entrer{" "}
-                <strong>SEULEMENT</strong> le nom de votre{" "}
-                <strong>VILLE</strong>. (ex: &quot; Prévost &quot;)
+                <strong>Sainte-Sophie</strong>, veuillez entrer <u>SEULEMENT</u>{" "}
+                le nom de votre <u>VILLE</u>. (ex: &quot; Prévost &quot;)
               </li>
               <li>
                 ✓ Si vous demeurez à <strong>Saint-Jérôme</strong>, veuillez
-                entrer le nom de votre <strong>RUE </strong> dans la barre de
-                recherche ci-dessous. (ex: &quot; rue Albert &quot;)
+                inscrire <u>SEULEMENT</u> {"  "}le nom de votre <u>RUE</u>{" "}
+                {"  "} dans la barre de recherche ci-dessous. (ex: &quot;rue
+                Albert&quot;)
               </li>
             </ul>
           </div>
