@@ -65,8 +65,8 @@ export default function CookieConsent() {
           <p className="font-semibold">Cookies et statistiques</p>
           <p className="text-sm text-slate-600">
             Nous utilisons des cookies pour mesurer l&apos;utilisation du site
-            et améliorer nos communications. Aucune adresse recherchée n&apos;est
-            enregistrée dans ces cookies.
+            et améliorer nos communications. Aucune adresse recherchée
+            n&apos;est enregistrée dans ces cookies.
           </p>
         </div>
 
@@ -81,7 +81,7 @@ export default function CookieConsent() {
           <button
             type="button"
             onClick={() => saveChoice("accepted")}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md bg-[#1D522C] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#A2BF9B] focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             Accepter
           </button>
