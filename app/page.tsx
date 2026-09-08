@@ -406,7 +406,7 @@ export default function ComptairSearchPage() {
                 query.trim().length > 0 && setShowSuggestions(true)
               }
               placeholder="(ex : Rue Albert, Saint-Jérôme ou ex : Prévost)"
-              className="w-full py-4 pl-4 pr-14 text-base bg-white text-gray-900 placeholder:text-gray-400 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 sm:px-6 sm:pr-40 sm:text-lg"
+              className="w-full py-4 pl-4 pr-14 text-base bg-white text-gray-900 placeholder:text-gray-400 border-2 border-green-200 rounded-lg focus:outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200 transition-all duration-200 sm:px-6 sm:pr-40 sm:text-lg"
             />
             <button
               onClick={() => handleSearch(query)}
