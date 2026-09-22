@@ -650,10 +650,20 @@ export default function ComptairSearchPage() {
                 Albert&quot;)
               </li>
               <li className="text-red-700">
-                ✓ Si vous demeurez à <strong>Saint-Jérôme</strong>, veuillez
-                inscrire <u>SEULEMENT</u> {"  "}le nom de votre <u>RUE</u>{" "}
-                {"  "} dans la barre de recherche ci-dessous. (ex: &quot;rue
-                Albert&quot;)
+                &#42; Pour un dépannage alimentaire d&apos;urgence veuillez
+                contacter le :{" "}
+                <a href="tel:4509156681" className="text-blue-600 underline">
+                  450-987-5431
+                </a>{" "}
+                &#42;
+              </li>
+              <li className="text-red-700">
+                &#42; Pour les personnes sans adresse fixe, veuillez contacter
+                le :{" "}
+                <a href="tel:4509156681" className="text-blue-600 underline">
+                  450-915-6681
+                </a>{" "}
+                &#42;
               </li>
             </ul>
           </div>
