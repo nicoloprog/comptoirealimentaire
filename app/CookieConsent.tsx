@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/dist/client/link";
 import { useSyncExternalStore } from "react";
 
 const CONSENT_COOKIE = "comptoir_cookie_consent";
@@ -65,8 +66,13 @@ export default function CookieConsent() {
           <p className="font-semibold">Cookies et statistiques</p>
           <p className="text-sm text-slate-600">
             Nous utilisons des cookies pour mesurer l&apos;utilisation du site
-            et améliorer nos communications. Aucune adresse recherchée
-            n&apos;est enregistrée dans ces cookies.
+            et améliorer nos communications.{" "}
+            <Link
+              className="text-sm text-blue-500 underline"
+              href="/politique-confidentialite"
+            >
+              Conditions d'utilisation
+            </Link>
           </p>
         </div>
 

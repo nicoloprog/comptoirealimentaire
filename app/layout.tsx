@@ -51,6 +51,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <a
+          href="/politique-confidentialite"
+          className="fixed bottom-3 right-3 z-40 rounded-full border border-slate-200 bg-white px-2 py-1 text-[12px] text-slate-600 transition hover:border-[#1D522C] hover:text-[#1D522C] focus:outline-none focus:ring-2 focus:ring-[#1D522C] focus:ring-offset-2"
+          aria-label="Consulter la politique de confidentialité"
+        >
+          Conditions d'utilisation
+        </a>
         <GoogleTagManager />
         <CookieConsent />
       </body>

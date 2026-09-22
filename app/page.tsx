@@ -108,7 +108,10 @@ function getSearchTrackingShape(
       : "street";
 
   return {
-    event: "comptoir_search",
+    // GA4's recommended internal-search event. Keep this behind the consent
+    // check in trackSearch because the query can contain a street address.
+    event: "search",
+    search_term: searchQuery.trim().replace(/\s+/g, " ").slice(0, 100),
     search_type: searchType,
     has_civic_number: hasCivicNumber,
   };
@@ -406,7 +409,7 @@ export default function ComptairSearchPage() {
                 query.trim().length > 0 && setShowSuggestions(true)
               }
               placeholder="(ex : Rue Albert, Saint-Jérôme ou ex : Prévost)"
-              className="w-full py-4 pl-4 pr-14 text-base bg-white text-gray-900 placeholder:text-gray-400 border-2 border-green-200 rounded-lg focus:outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200 transition-all duration-200 sm:px-6 sm:pr-40 sm:text-lg"
+              className="w-full py-4 pl-4 pr-14 text-base bg-white text-gray-900 placeholder:text-gray-400 border-2 border-green-600 rounded-lg focus:outline-none focus:border-green-600 focus:ring-2 focus:ring-green-800 transition-all duration-200 sm:px-6 sm:pr-40 sm:text-lg"
             />
             <button
               onClick={() => handleSearch(query)}
@@ -641,6 +644,12 @@ export default function ComptairSearchPage() {
                 le nom de votre <u>VILLE</u>. (ex: &quot; Prévost &quot;)
               </li>
               <li>
+                ✓ Si vous demeurez à <strong>Saint-Jérôme</strong>, veuillez
+                inscrire <u>SEULEMENT</u> {"  "}le nom de votre <u>RUE</u>{" "}
+                {"  "} dans la barre de recherche ci-dessous. (ex: &quot;rue
+                Albert&quot;)
+              </li>
+              <li className="text-red-700">
                 ✓ Si vous demeurez à <strong>Saint-Jérôme</strong>, veuillez
                 inscrire <u>SEULEMENT</u> {"  "}le nom de votre <u>RUE</u>{" "}
                 {"  "} dans la barre de recherche ci-dessous. (ex: &quot;rue
