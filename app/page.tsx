@@ -409,7 +409,7 @@ export default function ComptairSearchPage() {
                 query.trim().length > 0 && setShowSuggestions(true)
               }
               placeholder="(ex : Rue Albert, Saint-Jérôme ou ex : Prévost)"
-              className="w-full py-4 pl-4 pr-14 text-base bg-white text-gray-900 placeholder:text-gray-400 border-2 border-green-600 rounded-lg focus:outline-none focus:border-green-600 focus:ring-2 focus:ring-green-800 transition-all duration-200 sm:px-6 sm:pr-40 sm:text-lg"
+              className="w-full py-4 pl-4 pr-14 text-base bg-white text-gray-900 placeholder:text-gray-400 border-2 border-green-700 rounded-lg focus:outline-none focus:border-green-600 focus:ring-2 focus:ring-green-800 transition-all duration-200 sm:px-6 sm:pr-40 sm:text-lg"
             />
             <button
               onClick={() => handleSearch(query)}
@@ -652,7 +652,7 @@ export default function ComptairSearchPage() {
               <li className="text-red-700">
                 &#42; Pour un dépannage alimentaire d&apos;urgence veuillez
                 contacter le :{" "}
-                <a href="tel:4509156681" className="text-blue-600 underline">
+                <a href="tel:4509875431" className="text-blue-600 underline">
                   450-987-5431
                 </a>{" "}
                 &#42;
