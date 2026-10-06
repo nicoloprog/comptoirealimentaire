@@ -671,12 +671,12 @@ export default function ComptairSearchPage() {
       </div>
       <div className="fixed w-full text-white-600 left-2.5 bottom-2.5 text-[0.55rem]">
         Propulsé par{" "}
-        <a
+        <link
           href="https://portfolio-seven-lac-89.vercel.app"
           className="text-white-600 underline"
         >
           Grandiflores
-        </a>
+        </link>
       </div>
     </div>
   );
