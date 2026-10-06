@@ -673,7 +673,7 @@ export default function ComptairSearchPage() {
         Propulsé par{" "}
         <a
           href="https://portfolio-seven-lac-89.vercel.app"
-          className=" text-white-600 underline"
+          className="text-white-600 underline"
         >
           Grandiflores
         </a>
