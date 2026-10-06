@@ -669,7 +669,7 @@ export default function ComptairSearchPage() {
           </div>
         )}
       </div>
-      <div className="fixed w-full left-2.5 bottom-2.5 text-[0.55rem]">
+      <div className="fixed w-full text-white-600 left-2.5 bottom-2.5 text-[0.55rem]">
         Propulsé par{" "}
         <a
           href="https://portfolio-seven-lac-89.vercel.app"
