@@ -652,22 +652,31 @@ export default function ComptairSearchPage() {
               <li className="text-red-700">
                 &#42; Pour un dépannage alimentaire d&apos;urgence veuillez
                 contacter le :{" "}
-                <a href="tel:4509875431" className="text-blue-600 underline">
-                  450-987-5431
+                <a href="tel:4383688857" className="text-blue-600 underline">
+                  438 368-8857
                 </a>{" "}
                 &#42;
               </li>
               <li className="text-red-700">
                 &#42; Pour les personnes sans adresse fixe, veuillez contacter
                 le :{" "}
-                <a href="tel:4509156681" className="text-blue-600 underline">
-                  450-915-6681
+                <a href="tel:4504362665" className="text-blue-600 underline">
+                  450 436-2665
                 </a>{" "}
                 &#42;
               </li>
             </ul>
           </div>
         )}
+      </div>
+      <div className="fixed w-full left-2.5 bottom-2.5 text-[0.55rem]">
+        Propulsé par{" "}
+        <a
+          href="https://portfolio-seven-lac-89.vercel.app"
+          className=" text-white-600 underline"
+        >
+          Grandiflores
+        </a>
       </div>
     </div>
   );
